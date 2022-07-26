@@ -51,12 +51,20 @@ func main() {
 	// timer for measuring actual time required to finish work
 	start := time.Now()
 
+	// the total number of workers (goroutines being assigned concurrent jobs) is fixed (workersCount)
+	// jobs are passed via 'inputCh' channel
+	// goroutines are active during entire cycle of application run, all until application is terminated
+	// and 'stopCh' is closed
 	for i := 0; i < workersCount; i++ {
 		go func() {
 			for {
 				select {
+				// closing stopCh enables this case, which sole purpose is to exit goroutine
 				case <-stopCh:
 					return
+				// this line is blocking until job is written into inputCh,
+				// with streams there is usually no fixed distribution of jobs,
+				// so first available worker take the job and process it
 				case job := <-inputCh:
 					defer workersWG.Done()
 
@@ -76,15 +84,26 @@ func main() {
 MainLoop:
 	for {
 		select {
+		// code reaches this point on os.Signal - any signal,
+		// for example ctrl+c will trigger this case
 		case <-quitCh:
+			// closing channel, unblocks channel,
+			// returning buffered values (if any), then nil(s)
+			// in this scenario, it's used to unblock line 58 & close that goroutine
 			close(stopCh)
+			// waiting is implemented to support 'graceful shutdown'
+			// to prevent breaking goroutines code in the middle of execution
 			workersWG.Wait()
+			// this will break main loop
 			break MainLoop
 		default:
+			// this line is here only to simulate stream incoming in particular speed
 			time.Sleep(time.Duration(jobsLatencyMS) * time.Millisecond)
 			job := makeJobFunc()
 			workersWG.Add(1)
 			workersTotalTime += job.TimeInSec
+			// job starts its execution by writing into channel
+			// with Go, it's the preferred way of communicating between goroutines
 			inputCh <- job
 		}
 	}
