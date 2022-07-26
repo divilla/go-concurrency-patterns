@@ -34,7 +34,9 @@ type (
 func main() {
 	makeJobFunc := jobMaker()
 
+	// channel used to exit worker goroutines
 	stopCh := make(chan struct{})
+	// channel used to pass Job(s) to workers
 	inputCh := make(chan Job)
 
 	// Wait for interrupt signal to gracefully shutdown the server without a timeout implemented.
@@ -51,9 +53,9 @@ func main() {
 	// timer for measuring actual time required to finish work
 	start := time.Now()
 
-	// the total number of workers (goroutines being assigned concurrent jobs) is fixed (workersCount)
-	// jobs are passed via 'inputCh' channel
-	// goroutines are active during entire cycle of application run, all until application is terminated
+	// the total number of workers (concurrent goroutines used to do jobs) is fixed (workersCount)
+	// jobs are passed to workers via 'inputCh' channel
+	// workers are active during entire cycle of application run, all until application is terminated
 	// and 'stopCh' is closed
 	for i := 0; i < workersCount; i++ {
 		go func() {
