@@ -85,7 +85,7 @@ func makeJobs() []Job {
 		tis := rand.Intn(maxDurSecs) + 1
 		jobs = append(jobs, Job{
 			Id:        i + 1,
-			Name:      fmt.Sprintf("Job #nr: %d, #sec: %d", i+1, tis),
+			Name:      fmt.Sprintf("Job #id: %d, #sec: %d", i+1, tis),
 			TimeInSec: tis,
 		})
 	}
