@@ -40,7 +40,7 @@ func main() {
 	workersWG := &sync.WaitGroup{}
 
 	// total workers time required to finish jobs
-	workersTotalTime := 0
+	totalProcessingTime := 0
 
 	// timer for measuring actual time required to finish work
 	start := time.Now()
@@ -93,7 +93,7 @@ MainLoop:
 		// this line is here only to simulate stream incoming in particular speed
 		time.Sleep(time.Duration(jobsLatencyMS) * time.Millisecond)
 		job := makeJobFunc()
-		workersTotalTime += job.TimeInSec
+		totalProcessingTime += job.TimeInSec
 		workersWG.Add(1)
 
 		// job starts its execution by writing into channel
@@ -101,7 +101,7 @@ MainLoop:
 		inputCh <- job
 	}
 
-	fmt.Printf("Workers time #sec: %d, Elapsed time #sec: %v", workersTotalTime, time.Since(start).Seconds())
+	fmt.Printf("Processor (workers) time #sec: %d, Elapsed actual time #sec: %v", totalProcessingTime, time.Since(start).Seconds())
 }
 
 func runWorker(workersWG *sync.WaitGroup, j tools.Job) {

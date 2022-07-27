@@ -70,7 +70,7 @@ MainLoop:
 	// in other words, all the worker goroutines finished and executed 'Done()'
 	workersWG.Wait()
 
-	fmt.Printf("Workers time #sec: %d, Elapsed time #sec: %v", totalProcessingTime, time.Since(start).Seconds())
+	fmt.Printf("Processor (workers) time #sec: %d, Elapsed actual time #sec: %v", totalProcessingTime, time.Since(start).Seconds())
 }
 
 func runWorker(workersCh <-chan struct{}, workersWG *sync.WaitGroup, k int, j tools.Job) {
