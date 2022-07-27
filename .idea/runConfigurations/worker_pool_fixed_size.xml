@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="worker-pool-fixed-size" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="go-concurrency-patterns" />
+    <working_directory value="$PROJECT_DIR$" />
+    <kind value="DIRECTORY" />
+    <directory value="$PROJECT_DIR$/worker-pool-fixed-size" />
+    <filePath value="$PROJECT_DIR$/jobs-stream" />
+    <method v="2" />
+  </configuration>
+</component>

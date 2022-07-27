@@ -1,3 +1,3 @@
-module github.com/divilla/go-worker-pool
+module github.com/divilla/go-concurrency-patterns
 
 go 1.18

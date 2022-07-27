@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"os/signal"
 	"runtime"
 	"sync"
 	"time"
@@ -13,7 +15,7 @@ const (
 	maxDurSecs = 3
 
 	// total number of jobs
-	jobsCount = 32
+	jobsCount = 256
 
 	// maximum number of concurrent workers
 	workersCount = 8
@@ -36,13 +38,25 @@ func main() {
 	// buffered channel is used to limit total number of concurrent workers running
 	workersCh := make(chan struct{}, workersCount)
 
+	// Wait for interrupt signal to gracefully shutdown the server without a timeout implemented.
+	// Use a buffered channel to avoid missing signals as recommended for signal.Notify
+	quitCh := make(chan os.Signal, 1)
+	signal.Notify(quitCh, os.Interrupt)
+
 	// total workers time required to finish jobs
 	workersTotalTime := 0
 
 	// timer for measuring actual time required to finish work
 	start := time.Now()
 
+MainLoop:
 	for key, job := range jobs {
+		select {
+		case <-quitCh:
+			break MainLoop
+		default:
+		}
+
 		// register single job Add(1) in sync.WaitGroup
 		// this line will block main goroutine at line 77, preventing main program from exiting
 		// for as long as nr# of Add() > Done()
