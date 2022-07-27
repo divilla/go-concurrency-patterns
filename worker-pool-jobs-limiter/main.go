@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
+	"github.com/divilla/go-concurrency-patterns/tools"
 	"os"
 	"os/signal"
 	"runtime"
@@ -15,22 +15,17 @@ const (
 	maxDurSecs = 3
 
 	// total number of jobs
-	jobsCount = 256
+	jobsCount = 1024
 
 	// maximum number of concurrent workers
 	workersCount = 8
 )
 
-type (
-	Job struct {
-		Id        int
-		Name      string
-		TimeInSec int
-	}
-)
-
 func main() {
-	jobs := makeJobs()
+	jobs := tools.MakeJobs(jobsCount, maxDurSecs)
+
+	// turn on basic memory consumption monitoring, comment the line to turn it off
+	go tools.MemoryMonitor()
 
 	// sync.WaitGroup is used to keep main goroutine running until all worker goroutines finish
 	workersWG := &sync.WaitGroup{}
@@ -38,15 +33,15 @@ func main() {
 	// buffered channel is used to limit total number of concurrent workers running
 	workersCh := make(chan struct{}, workersCount)
 
-	// Wait for interrupt signal to gracefully shutdown the server without a timeout implemented.
-	// Use a buffered channel to avoid missing signals as recommended for signal.Notify
+	// Wait for interrupt signal to gracefully shut down the server without a timeout implemented.
+	// Buffered channel is used to avoid missing signals as recommended for signal.Notify
 	quitCh := make(chan os.Signal, 1)
 	signal.Notify(quitCh, os.Interrupt)
 
-	// total workers time required to finish jobs
-	workersTotalTime := 0
+	// total processor time needed to run all the workers & finish jobs
+	totalProcessingTime := 0
 
-	// timer for measuring actual time required to finish work
+	// timer for measuring actual (Earth) elapsed time required to finish work
 	start := time.Now()
 
 MainLoop:
@@ -54,55 +49,46 @@ MainLoop:
 		select {
 		case <-quitCh:
 			break MainLoop
-		default:
+
+		// try to fill the buffer with single struct{}
+		// this case is blocking (not executing) when workersCh buffer is full
+		// 'workersCh' is full when filled with 'workersCount' number of struct{}
+		case workersCh <- struct{}{}:
+			// add a delta to *sync.WaitGroup to ensure main goroutine is running
+			// until all workers (goroutines) finish processing
+			workersWG.Add(1)
+
+			// add time required for job to total required processing time
+			totalProcessingTime += job.TimeInSec
+
+			// start 'runWorker' as concurrent goroutine
+			go runWorker(workersCh, workersWG, key+1, job)
 		}
-
-		// register single job Add(1) in sync.WaitGroup
-		// this line will block main goroutine at line 77, preventing main program from exiting
-		// for as long as nr# of Add() > Done()
-		workersWG.Add(1)
-
-		// fill the buffer with single struct{}
-		// this line is blocking further execution when buffer is full:
-		// 'workersCh' is filled with 'workersCount' number of struct{}
-		workersCh <- struct{}{}
-		workersTotalTime += job.TimeInSec
-
-		// this pattern creating new goroutine for each job, but goroutines are cheap,
-		// so creating & dumping single goroutine for each job has marginal impact on overall performance,
-		// while making the code way more readable
-		go func(k int, j Job) {
-			defer func() {
-				// release single struct{} & unblock line 54
-				<-workersCh
-
-				// mark job in sync.WaitGroup Done()
-				// when all jobs are Done() - total nr# Add(x) == total nr# Done() main goroutine will unblock line 77
-				workersWG.Done()
-			}()
-
-			fmt.Println(fmt.Sprintf("Started #key: %d", k), j.Name, fmt.Sprintf("Total running goroutines #nr: %d", runtime.NumGoroutine()))
-			time.Sleep(time.Duration(j.TimeInSec) * time.Second)
-			fmt.Println(fmt.Sprintf("Finished #key: %d", k), j.Name, fmt.Sprintf("Total running goroutines #nr: %d", runtime.NumGoroutine()))
-		}(key+1, job)
 	}
 
-	// this line is blocking until all the workers executed 'workersWG.Done()'
+	// this line is blocking until *sync.WaitGroup's delta becomes 0,
+	// in other words, all the worker goroutines finished and executed 'Done()'
 	workersWG.Wait()
 
-	fmt.Printf("Workers time #sec: %d, Elapsed time #sec: %v", workersTotalTime, time.Since(start).Seconds())
+	fmt.Printf("Workers time #sec: %d, Elapsed time #sec: %v", totalProcessingTime, time.Since(start).Seconds())
 }
 
-func makeJobs() []Job {
-	var jobs []Job
-	for i := 0; i < jobsCount; i++ {
-		tis := rand.Intn(maxDurSecs) + 1
-		jobs = append(jobs, Job{
-			Id:        i + 1,
-			Name:      fmt.Sprintf("Job #id: %d, #sec: %d", i+1, tis),
-			TimeInSec: tis,
-		})
+func runWorker(workersCh <-chan struct{}, workersWG *sync.WaitGroup, k int, j tools.Job) {
+	// defer fill ensure statements are executed at the end, no matter how 'runWorker' function exits
+	defer func() {
+		// calling *sync.WaitGroup.Done(), decreases WaitGroups delta marking worker's goroutine job as Done
+		workersWG.Done()
+
+		// empty single struct{} from 'workersCh' channel buffer
+		// that will unblock app main loop & start new worker goroutine
+		<-workersCh
+	}()
+
+	if j.TimeInSec == 0 {
+		fmt.Printf("invalid job id#: %d, error: time set to 0\r\n", j.Id)
+		return
 	}
 
-	return jobs
+	time.Sleep(time.Duration(j.TimeInSec) * time.Second)
+	fmt.Println(fmt.Sprintf("Finished #key: %d", k), j.Name, fmt.Sprintf("Total running goroutines #nr: %d", runtime.NumGoroutine()))
 }
