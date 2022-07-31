@@ -14,15 +14,12 @@ const (
 	// maximum random worker duration in seconds
 	maxDurSecs = 3
 
-	// total number of jobs
-	jobsCount = 1024
-
 	// maximum number of concurrent workers
 	workersCount = 8
 )
 
 func main() {
-	jobs := tools.MakeJobs(jobsCount, maxDurSecs)
+	makeJobFunc := tools.JobMaker(maxDurSecs)
 
 	// turn on basic memory consumption monitoring, comment the line to turn it off
 	go tools.MemoryMonitor()
@@ -45,7 +42,7 @@ func main() {
 	start := time.Now()
 
 MainLoop:
-	for key, job := range jobs {
+	for {
 		select {
 		case <-quitCh:
 			break MainLoop
@@ -54,6 +51,9 @@ MainLoop:
 		// this case is blocking (not executing) when workersCh buffer is full
 		// 'workersCh' is full when filled with 'workersCount' number of struct{}
 		case workersCh <- struct{}{}:
+			// produce Job
+			job := makeJobFunc()
+
 			// add a delta to *sync.WaitGroup to ensure main goroutine is running
 			// until all workers (goroutines) finish processing
 			workersWG.Add(1)
@@ -62,7 +62,7 @@ MainLoop:
 			totalProcessingTime += job.TimeInSec
 
 			// start 'runWorker' as concurrent goroutine
-			go runWorker(workersCh, workersWG, key+1, job)
+			go runWorker(workersCh, workersWG, job)
 		}
 	}
 
@@ -73,7 +73,7 @@ MainLoop:
 	fmt.Printf("Processor (workers) time #sec: %d, Elapsed actual time #sec: %v", totalProcessingTime, time.Since(start).Seconds())
 }
 
-func runWorker(workersCh <-chan struct{}, workersWG *sync.WaitGroup, k int, j tools.Job) {
+func runWorker(workersCh <-chan struct{}, workersWG *sync.WaitGroup, j tools.Job) {
 	// defer fill ensure statements are executed at the end, no matter how 'runWorker' function exits
 	defer func() {
 		// calling *sync.WaitGroup.Done(), decreases WaitGroups delta marking worker's goroutine job as Done
@@ -90,5 +90,5 @@ func runWorker(workersCh <-chan struct{}, workersWG *sync.WaitGroup, k int, j to
 	}
 
 	time.Sleep(time.Duration(j.TimeInSec) * time.Second)
-	fmt.Println(fmt.Sprintf("Finished #key: %d", k), j.Name, fmt.Sprintf("Total running goroutines #nr: %d", runtime.NumGoroutine()))
+	fmt.Println(fmt.Sprint("Finished: "), j.Name, fmt.Sprintf("Total running goroutines #nr: %d", runtime.NumGoroutine()))
 }

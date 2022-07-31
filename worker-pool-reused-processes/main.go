@@ -90,10 +90,13 @@ MainLoop:
 		default:
 		}
 
-		// this line is here only to simulate stream incoming in particular speed
+		// this line is here only to simulate stream incoming in particular velocity
 		time.Sleep(time.Duration(jobsLatencyMS) * time.Millisecond)
 		job := makeJobFunc()
 		totalProcessingTime += job.TimeInSec
+
+		// add a delta to *sync.WaitGroup to ensure main goroutine is running
+		// until all workers (goroutines) finish processing
 		workersWG.Add(1)
 
 		// job starts its execution by writing into channel
